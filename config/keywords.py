@@ -25,5 +25,7 @@ KEYWORD_GROUPS = {
         "website testing", "ui testing", "bug testing",
         "manual testing", "usability testing",
         "website audit", "website review"
-    ]
+    ],
+    "website_build": 
+        ["website build", "figma to html", "landing page"]
 }
