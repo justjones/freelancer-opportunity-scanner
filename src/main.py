@@ -1,95 +1,78 @@
-# Core modules
-from config.keywords import KEYWORD_GROUPS
-from config.settings import SETTINGS
-
+# src/main.py
 from src.client import search_projects
 from src.filters import passes_hard_filters
 from src.scorer import score_project, assign_fit_bucket
-from src.exporter import export_to_csv
 from src.utils import deduplicate_projects
+from src.mailer import send_results_email
 
-# Utilities
-from src.utils import deduplicate_projects
-def main():
-    print("Starting Freelancer Opportunity Scanner...\n")
+from config.keywords import KEYWORD_GROUPS
+from config.settings import SETTINGS
 
+#  python -m src.main
+
+QUICK_FIX_QUERIES = [
+    "css fix",
+    "website bug",
+    "wordpress fix",
+    "shopify fix",
+    "website testing",
+    "responsive issue",
+    "layout bug",
+    "frontend bug",
+    "fix website error",
+    "ui bug",
+]
+
+SMALL_BUILD_QUERIES = [
+    "landing page",
+    "figma to html",
+    "figma to wordpress",
+    "website build",
+    "one page website",
+    "small business website",
+]
+
+
+def run_mode(mode_name, queries):
     all_projects = []
 
-    # 1. Search projects by keyword groups
-    for group_name, terms in KEYWORD_GROUPS.items():
-        print(f"Searching group: {group_name}")
+    for q in queries:
+        results = search_projects(q)
+        all_projects.extend(results)
 
-        for term in terms:
-            print(f"  → Searching: {term}")
-            results = search_projects(term)
-
-            if results:
-                all_projects.extend(results)
-
-    print(f"\nTotal projects fetched: {len(all_projects)}")
-
-    # 2. Deduplicate
     unique_projects = deduplicate_projects(all_projects)
-    print(f"After deduplication: {len(unique_projects)}")
 
-    # 3. Apply hard filters
-    filtered_projects = [
-        p for p in unique_projects if passes_hard_filters(p, SETTINGS)
+    filtered = [
+        p for p in unique_projects
+        if passes_hard_filters(p, SETTINGS, KEYWORD_GROUPS)
     ]
-    print(f"After filtering: {len(filtered_projects)}")
 
-    # 4. Score projects
-    scored_projects = []
-    for project in filtered_projects:
-        score = score_project(project, SETTINGS)
-        fit_bucket = assign_fit_bucket(score)
+    scored = []
+    for p in filtered:
+        score = score_project(p, SETTINGS, KEYWORD_GROUPS)
+        bucket = assign_fit_bucket(score)
+        p.score = score
+        p.fit_bucket = bucket
+        scored.append(p)
 
-        project.score = score
-        project.fit_bucket = fit_bucket
+    ranked = sorted(scored, key=lambda x: x.score, reverse=True)
+    ranked_for_email = [p for p in ranked if p.fit_bucket != "Skip"]
 
-        scored_projects.append(project)
+    return {
+        "mode": mode_name,
+        "raw_count": len(all_projects),
+        "unique_count": len(unique_projects),
+        "filtered_count": len(filtered),
+        "ranked": ranked_for_email,
+    }
 
-    # 5. Sort by score
-    ranked_projects = sorted(
-        scored_projects,
-        key=lambda x: x.score,
-        reverse=True
-    )
 
-    # 6. Export results
-    export_to_csv(ranked_projects)
+def main():
+    quick_fix_results = run_mode("quick_fix", QUICK_FIX_QUERIES)
+    small_build_results = run_mode("small_build", SMALL_BUILD_QUERIES)
 
-    # 7. Print top matches
-    print("\nTop Opportunities:\n")
-
-    for project in ranked_projects[:10]:
-        print(f"[{project.fit_bucket}] ({project.score}) {project.title}")
-        print(f"→ {project.url}\n")
-
-    print("Done.\n")
+    send_results_email([quick_fix_results, small_build_results])
 
 
 if __name__ == "__main__":
     main()
-    
-filtered_projects = [
-    p for p in unique_projects
-    if passes_hard_filters(p, SETTINGS, KEYWORD_GROUPS)
-]
-
-scored_projects = []
-for project in filtered_projects:
-    score = score_project(project, SETTINGS, KEYWORD_GROUPS)
-    fit_bucket = assign_fit_bucket(score)
-
-    project.score = score
-    project.fit_bucket = fit_bucket
-    scored_projects.append(project)
-    
-import time
-
-start = time.time()
-main()
-end = time.time()
-
-print(f"Execution time: {round(end - start, 2)} seconds")

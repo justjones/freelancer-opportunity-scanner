@@ -1,34 +1,18 @@
-def normalize_text(*values):
-    """
-    Combine multiple values into one lowercase string for matching.
-    """
-    parts = [str(v).strip().lower() for v in values if v]
-    return " ".join(parts)
-
-
-def count_matches(text, terms):
-    """
-    Count how many terms appear in text.
-    """
-    text = text.lower()
-    return sum(1 for term in terms if term.lower() in text)
+from src.utils import normalize_text
 
 
 def score_keyword_group_matches(project, keyword_groups):
-    """
-    Score based on keyword group matches in title/description.
-    """
     text = normalize_text(project.title, project.description)
     score = 0
     matched_keywords = []
 
     group_weights = {
-        "frontend_ui_fixes": 15,
-        "website_troubleshooting": 15,
+        "frontend_ui_fixes": 14,
+        "website_troubleshooting": 14,
         "wordpress_adjustments": 10,
         "shopify_ecommerce_fixes": 10,
-        "qa_testing": 20,
-        "website_build": 20,
+        "qa_testing": 18,
+        "website_build": 10,
     }
 
     for group_name, terms in keyword_groups.items():
@@ -40,70 +24,102 @@ def score_keyword_group_matches(project, keyword_groups):
     return score, matched_keywords
 
 
-def score_positive_signals(project):
-    """
-    Extra scoring for strong-fit language.
-    """
-    text = normalize_text(project.title, project.description)
-
+def score_term_matches(title_text, body_text, rules):
     score = 0
 
-    positive_rules = {
-    "fix": 20,
-    "bug": 18,
-    "error": 18,
-    "debug": 18,
-    "broken": 18,
-    "not working": 20,
-    "responsive": 12,
-    "css": 12,
-    "layout": 10,
-    "frontend": 10,
-    "testing": 20,
-    "audit": 16,
-    "website":20,
-    "figma": 20,
-    "landing page": 20,
-}
-
-    for term, points in positive_rules.items():
-        if term in text:
+    for term, points in rules.items():
+        if term in title_text:
             score += points
+        elif term in body_text:
+            score += int(points * 0.6)
 
     return score
+
+
+def score_positive_signals(project):
+    title_text = normalize_text(project.title)
+    body_text = normalize_text(project.description)
+
+    positive_rules = {
+        "fix": 18,
+        "bug": 18,
+        "issue": 14,
+        "error": 16,
+        "broken": 16,
+        "debug": 16,
+        "not working": 20,
+        "troubleshoot": 16,
+        "troubleshooting": 16,
+
+        "css": 14,
+        "html": 12,
+        "responsive": 14,
+        "layout": 12,
+        "mobile": 10,
+        "frontend": 12,
+        "ui": 10,
+
+        "wordpress": 10,
+        "shopify": 10,
+
+        "testing": 18,
+        "manual testing": 22,
+        "ui testing": 22,
+        "website audit": 20,
+        "audit": 16,
+        "review": 10,
+
+        "landing page": 10,
+        "figma to html": 14,
+        "figma to wordpress": 14,
+        "one page website": 8,
+    }
+
+    return score_term_matches(title_text, body_text, positive_rules)
 
 
 def score_negative_signals(project, settings):
-    """
-    Deduct points for poor-fit language.
-    """
-    text = normalize_text(project.title, project.description)
-    score = 0
+    title_text = normalize_text(project.title)
+    body_text = normalize_text(project.description)
 
     negative_rules = {
-    "long term": -10,
-    "ongoing": -8,
-    "assistant": -12,
-    "general website maintenance": -12,
-    "uploading blog posts": -12,
-    "replacing images": -8,
-    "content updates": -10,
-    "divi builder": -10,
-    "divi": -8,
-    "virtual assistant": -12,
-}
+        "assistant": -14,
+        "virtual assistant": -18,
+        "ongoing": -10,
+        "long term": -12,
+        "maintenance": -12,
+        "general website maintenance": -16,
+        "content updates": -14,
+        "uploading blog posts": -14,
+        "replacing images": -10,
+        "replacing text": -10,
+        "data entry": -18,
 
-    for term, points in negative_rules.items():
-        if term in text:
-            score += points
+        "divi": -10,
+        "divi builder": -12,
 
-    return score
+        "full website": -16,
+        "complete rebuild": -18,
+        "enterprise": -16,
+        "saas platform": -18,
+        "android app": -18,
+        "ios app": -18,
+        "mobile app": -18,
+        "backend": -12,
+        "laravel": -10,
+        "django": -10,
+        "node.js": -10,
+        "react native": -12,
+
+        "agency": -10,
+        "team of developers": -14,
+        "long term team": -14,
+    }
+
+    return score_term_matches(title_text, body_text, negative_rules)
 
 
 def score_budget(project, settings):
-    """
-    Prefer smaller, quicker-win opportunities.
-    """
     preferred_budget_max = settings.get("preferred_budget_max")
     min_budget = getattr(project, "min_budget", None)
     max_budget = getattr(project, "max_budget", None)
@@ -121,9 +137,6 @@ def score_budget(project, settings):
 
 
 def score_bid_count(project, settings):
-    """
-    Lower bid counts are generally better.
-    """
     bid_count = getattr(project, "bid_count", None)
     if bid_count is None:
         return 0
@@ -134,15 +147,13 @@ def score_bid_count(project, settings):
         return 10
     if bid_count <= 20:
         return 5
+    if bid_count <= 40:
+        return 0
 
-    return -5
+    return -8
 
 
 def score_project(project, settings, keyword_groups):
-    """
-    Main scoring function.
-    Returns a numeric score and attaches matched keywords if desired.
-    """
     total_score = 0
 
     keyword_score, matched_keywords = score_keyword_group_matches(project, keyword_groups)
@@ -157,11 +168,8 @@ def score_project(project, settings, keyword_groups):
 
 
 def assign_fit_bucket(score):
-    """
-    Convert numeric score into a fit label.
-    """
-    if score >= 70:
+    if score >= 55:
         return "Strong fit"
-    if score >= 45:
+    if score >= 30:
         return "Possible fit"
     return "Skip"
