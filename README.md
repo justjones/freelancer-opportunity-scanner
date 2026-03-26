@@ -2,6 +2,12 @@
 
 A Python-based automation tool that searches Freelancer.com for relevant projects, filters and ranks them based on custom criteria, and delivers a curated shortlist via email.
 
+## Project Summary
+
+Freelancer Opportunity Scanner is a Python-based automation tool designed to streamline the process of finding high-quality freelance work. Instead of manually browsing job listings, the tool automatically searches, filters, and ranks projects based on relevance, then delivers a curated shortlist via email.
+
+The system applies a structured decision pipeline using keyword analysis, scoring logic, and filtering rules to prioritize opportunities that align with frontend development and QA-focused work. This project reflects a practical approach to automation, combining real-world problem solving with clean, maintainable code.
+
 ## Overview
 
 This project was built to reduce the time spent manually searching freelance platforms and to focus only on high-quality opportunities.
